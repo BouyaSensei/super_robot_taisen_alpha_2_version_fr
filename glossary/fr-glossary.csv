@@ -1,0 +1,10 @@
+term_ja,term_en,term_fr,category,notes
+,,,,,
+# Catégories : pilot | mecha | weapon | org | place | skill | item | term
+# Règles :
+# - term_fr est la forme CANONIQUE imposée à toute la traduction (glossaire = source de vérité)
+# - Les abréviations autorisées en cas de dépassement d'octets vont dans notes (ex: "abrégé: Fed")
+# - Noms propres : suivre les conventions FR officielles SRW quand elles existent (Akurasu / wiki), sinon translittération japonaise standard
+# Exemples (à remplacer par les vrais termes extraits de NAME.BIN) :
+# コウジ,Kouji,Koji,pilot,protagoniste route Sanger
+# ガンダム,Gundam,Gundam,mecha,
