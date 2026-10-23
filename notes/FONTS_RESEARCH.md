@@ -93,6 +93,37 @@ Sources : fil forum romhacking topic 41712 (spoil détaillé de Gyasuke) + `pvr_
 5. Le blocage central de Gyasuke était exactement « the mapping of the values of the font » —
    même problème que le nôtre. Il n'a jamais publié la table.
 
+## Path B — crib-decoding JP↔EN : acquis + plafond atteint
+### Acquis solides (réutilisables)
+- **Alignement PARFAIT** : `BVC.BIN` JP et EN = **157 676 segments identiques** (mêmes offsets).
+  Dump complet des paires alignées → `work/bvc_pairs.json`. Base solide pour toute méthode.
+- **Ancre ponctuation** : code `0x88c7` = « ! » (termine ~tous les cris de combat), slot **311**.
+  `0x88c8` = « !! », slot 316.
+- **Structure du font FTALL.P04** (diff JP↔EN, 3150 slots × 256 octets) :
+  - Slots **0–1001** : IDENTIQUES JP/EN (glyphes japonais conservés).
+  - Slots **1002–3149** : TOUS modifiés par Gyasuke (bloc contenu anglais, contigu, gap=1).
+  - **1972 codes** pointent vers le bloc EN ; assignation **non séquentielle** (slots 1006–3136),
+    PAS un bloc A-Z propre. Certains codes très fréquents réutilisent des slots JP (< 1002) :
+    `0x8951`→388, `0x8ade`→735, `0x89f0`→565, `0x8aec`→754. Ancre « GO » (`0x974d`) → slot 3273.
+- **Les glyphes ne sont PAS des bitmaps plats** : les bytes bruts d'un slot (ex. 311) montrent des
+  records structurés 16-bit répétés + zones de zéros, beaucoup de bytes non-nuls (pas le profil
+  d'un bitmap 0x00/0xFF). ⇒ très probablement **contours vectoriels** rasterisés à l'exécution
+  (cohérent avec les tables scissor/alpha/bright de l'exécutable).
+
+### Plafond atteint (pourquoi B seul ne suffit pas)
+- **Mapping par fréquence = bruit** : les digraphes polluent le classement ; décodage des phrases
+  normales illisible (`??Z?O???A???I?AC?`). Hypothèse monoalphabétique invalidée.
+- **Solving par plaintext connu = trop bruité** : sans le texte anglais EXACT de Gyasuke (son repo
+  n'a que le xdelta, pas de dump de chaînes), mes traductions approximatives ne s'alignent pas
+  fiablement sur les codes (seuls FALL→FA+LL, SINK→SI+NK propres, car partition forcée).
+- **Rendu des glyphes = bruit** à tous les layouts testés (8bpp/1bpp, strides 208–256) : confirmé
+  que ce n'est pas un atlas bitmap naïf.
+
+### Conclusion
+Path B donne la base (alignement, structure, ancres) mais **ne produit pas une map complète** :
+l'assignation code→slot est custom/non séquentielle ET les glyphes sont vectoriels ⇒ il faut les
+**rendre pour les lire**, ce qui = piste C (RE du format/parser de police).
+
 ## Scripts (reproductibles, dans work/)
 - `font_analyze.py` — hexdump + facteurs + autocorrélation + runs de zéros.
 - `font_calib2.py` — lecture table 3646 codes + rendu multi-pas (PNG).
