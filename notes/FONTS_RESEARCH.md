@@ -185,6 +185,43 @@ Cracker la table code→fragment complète reste **un effort RE multi-sessions s
 positionnel pur invalide). La découverte digrammes + le dataset de 3018 cris sont des acquis
 solides réutilisables.
 
+## Session 3 — structure de table cracker + guessing format EPUISE
+### Structure de la table code→slot (CORRECTION importante)
+- La région `0x327186` de l'exe est une **liste de codes 2 octets en BIG-ENDIAN**
+  (pas des indices de slot !). `81 40` = code 0x8140 (placeholder VIDE), `82 4f`=0x824f...
+- **3646 entrées**, fin à l'offset file `0x328e02`. **3159 glyphes réels** (non 0x8140),
+  487 vides. min code=0x8140, max=0x98b5.
+- La **POSITION dans la liste = index de slot** dans FTALL.P04. Map code→position :
+  - `0x88c7` (« ! ») → position **311** (confirmé)
+  - `0x974d` (« GO ») → position **3273**
+  - `0x824f` (1er code réel) → position **1**
+- NB : 806400/3646 n'est pas entier ; 806400/3150=256, /3360=240, /3600=224. La taille
+  par slot exacte reste ambiguë (les slots vides consomment-ils de l'espace ?).
+
+### Guessing aveugle du format : EPUISE (tous = bruit)
+Testés sur le slot « ! » (pos 311) et montages, TOUS donnent du bruit (vision confirmée) :
+- 8bpp row-major (5 dims), 16bpp row-major (5 dims)
+- 16×16 twiddled DC + PS2 GS (montage 64 slots)
+- DCT 8×8 blocks (IDCT) — range ±42000, DCs ~0, non
+- planaire/intercalé (strides 3150/1008/5040)
+- bit-packé 1bpp (4 dims)
+- tailles de slot 256/240/224/192 (240 donne 9% encre, le plus sparse, mais pas un « ! »)
+- Distribution valeurs : JP ≈ EN (0x00 dominant, max=221), pas de diff d'encodage.
+⇒ **Le data est compressé/encodé ; aucun layout pixel simple ne le rend lisible.**
+
+### Le decodeur n'est PAS dans l'ISO
+- Scan de tous les fichiers ISO (71) : constantes format (806400/3150) absentes des .IRX.
+- Main exe : string « ftall.p04 » morte, 0 ref code, 0 constante format, ELF strippé.
+⇒ Decodeur dans **libgpu.spr** (lib systeme PS2, non livree) ou code live a localiser par RE.
+
+### REFRAEMENT STRATEGIQUE (important pour l'objectif FR)
+Pour un **patch francais**, on a besoin de la map **code→lettre**, PAS du decodeur de la
+police. La compression de FTALL.P04 n'est necessaire que pour AJOUTER des glyphes — or
+Gyasuke a deja ajoute tous les glyphes anglais/digraphes, et majuscules FR = majuscules EN.
+⇒ Voie a plus forte valeur : **alignement sur les NOMS DE PERSONNAGES** (tags speaker dans
+BVC.BIN = plaintext latin fiable « CAMILLE », « AMURO »...) pour cracker code→lettre SANS
+toucher au format. RE du decodeur = fallback si la map letters est insuffisante.
+
 ## Scripts (reproductibles, dans work/)
 - `font_analyze.py` — hexdump + facteurs + autocorrélation + runs de zéros.
 - `font_calib2.py` — lecture table 3646 codes + rendu multi-pas (PNG).
