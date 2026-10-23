@@ -62,8 +62,36 @@ Outils en place : `capstone 5.0.9` dans `work/.venv` (désassemblage MIPS32 OK, 
 - **Crib-decoding** : aligner BVC.BIN JP↔EN (mêmes offsets), utiliser le texte JP lisible +
   les noms de personnages (tags de speaker) comme cribs pour déduire code→lettre par segments.
   Nécessite d'identifier les zones de tags de speaker dans BVC.BIN.
-- **Récupérer la police PNG de Gyasuke** : il a converti la police en PNG puis reconvertie.
-  Si un dump PNG/intermédiaire est public (son repo ou romhacking), le mapping s'en lit directement.
+
+## Path A — recherche de dump/mapping public : ÉPUISÉE (conclusion)
+Recherché et vérifié (aucune source publique du mapping ou du font décodé) :
+- **GitLab Gyasuke** (`gabalva98`) — 4 repos : `2nd-...-ps2` (README + xdelta),
+  `super-robot-taisen-alpha-for-dreamcast` (README + xdelta + `T20602M.zip` = PNG textures
+  uniquement), `3rd-...`, `back-up-patch`. **Aucun outil source, aucun dump de police,
+  aucune table code→lettre.** Ses outils PS2 sont privés.
+- **GitHub closedsockets** — `dreamcast-translation-kit` (public) + `tricolore-crise` (patches).
+  Le kit DC est pour le format **PowerVR Dreamcast**, pas PS2.
+- **Web** : aucun dump public du font PS2 SRT Alpha 2.
+- **Kapml (Alpha 3, romhacking 7842)** — « HD font » mais distribution Discord/téléchargement,
+  **pas de repo public d'outils**.
+
+### Intelligence récupérée (change l'approche C et B)
+Sources : fil forum romhacking topic 41712 (spoil détaillé de Gyasuke) + `pvr_tool.py` du kit DC.
+1. **La police est MAJUSCULES uniquement** (A-Z) + digraphes + ponctuation.
+   Gyasuke : « A decision I made was to work directly in Uppercase, so I don't need to add too
+   many combinations ». ⇒ Alphabet restreint (~26 + dizaine de digraphes), pas 52 lettres.
+2. **Système de digraphes** : son outil remplace les *combinaisons de 2 lettres* par une valeur
+   de police (1 slot). Les slots vides (`0x8140`, 487 disponibles) reçoivent ces combos + lettres.
+   ⇒ Le mapping n'est PAS A-Z en positions fixes : c'est un assignment custom sur slots
+   kanji-réutilisés + slots vides.
+3. **Le bitmap n'est PAS row-major naïf.** Le kit DC (`pvr_tool.py`) décode des textures avec un
+   **twiddle** (interleaving des coords x,y via `_untwiddle`). Le font PS2 a très probablement son
+   propre interleave ⇒ explique pourquoi tous les rendus plats = bruit. En RE (path C), chercher
+   une transformation de coordonnées dans le parser, pas un simple stride linéaire.
+4. **Workflow confirmé** : decoder font→PNG éditable → éditer → re-encoder à longueur d'octets
+   identique (patch en place sûr).
+5. Le blocage central de Gyasuke était exactement « the mapping of the values of the font » —
+   même problème que le nôtre. Il n'a jamais publié la table.
 
 ## Scripts (reproductibles, dans work/)
 - `font_analyze.py` — hexdump + facteurs + autocorrélation + runs de zéros.
