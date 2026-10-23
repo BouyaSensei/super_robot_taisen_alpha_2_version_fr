@@ -154,6 +154,37 @@ Path B donne la base (alignement, structure, ancres) mais **ne produit pas une m
 l'assignation code→slot est custom/non séquentielle ET les glyphes sont vectoriels ⇒ il faut les
 **rendre pour les lire**, ce qui = piste C (RE du format/parser de police).
 
+## Session 2 (continuation) — texture/compressé + parser hors exécutable
+Poursuite piste C après la découverte digrammes. Conclusions nouvelles :
+- **FTALL.P04 n'est un bitmap lisible dans AUCUN layout simple.** Testés : 8bpp/1bpp
+  (strides 208–256), 16-bit index→gris à 5 dimensions (768×525, 1280×315, 640×630,
+  1024×393, 512×787). Tous = **bruit pur** (vision_analyze confirmé : « aucune forme de
+  lettre »). Taux d'encre ~54 % indépendant du layout ⇒ profil NON bitmap. Les glyphes
+  sont **compressés/structurés**, rasterisés par le parser à l'exécution.
+- **Le parser n'apparaît PAS dans l'exécutable SLPS_252.28** :
+  - Section [4] (file 0x1900..0x35ee80, VA 0x100000) = SEULE section réelle (code+data
+    mélangés, monolithique). Scannée intégralement.
+  - String « st:data/ftall.p04 » (file 0x32fdea / VA 0x42e4ea) : **1 occurrence unique,
+    0 référence** (ni lui/ori, ni pointeur LE word). ⇒ code mort/debug.
+  - Constantes du format absentes : taille fichier 806400 (0xC4E00), nb slots 3150 (0xC4E),
+    taille slot 256 → **0 site** lui/ori ET 0 word LE.
+  - Pas de relocations (ELF strippé, confirmé).
+  ⇒ Le rendu de la police est très probablement dans une **lib externe** (libgpu.spr système,
+    non livrée dans l'ISO) ou via un mécanisme non détectable sans RE profonde.
+- **Hypothèse PSM/CLUT** : extensions « .P04 » + compagnons `FONTCOL.C16` (512 o),
+  `HEN.P04`, `HEN.C16` ⇒ PSM (Pixel Storage Mode) GS + CLUT. FTALL.P04 = atlas texture,
+  FONTCOL.C16 = sa palette. MAIS le contenu n'est pas row-major naïf (twiddle/compression).
+- **ps2sdk fontx.c** (récupéré, `work/fontx_ref.c`) : header `id[7],name[9],w,h,type,
+  table_num, blocks{start,end}[]` — c'est le format **KROM/BIOS** (rom0:KROM), ne matche
+  PAS FTALL.P04 (qui commence par des zéros, pas un id texte). Pas réutilisable tel quel.
+
+### État honnête du blocage mapping
+Cracker la table code→fragment complète reste **un effort RE multi-sessions sans win rapide** :
+(a) parser hors exécutable (lib système à RE), (b) glyphes compressés (format inconnu),
+(c) plaintext anglais exact de Gyasuke non public, (d) tokenisation variable (alignement
+positionnel pur invalide). La découverte digrammes + le dataset de 3018 cris sont des acquis
+solides réutilisables.
+
 ## Scripts (reproductibles, dans work/)
 - `font_analyze.py` — hexdump + facteurs + autocorrélation + runs de zéros.
 - `font_calib2.py` — lecture table 3646 codes + rendu multi-pas (PNG).
