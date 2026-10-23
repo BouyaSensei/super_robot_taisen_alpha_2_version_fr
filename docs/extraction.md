@@ -42,19 +42,27 @@ adapté aux fichiers `.bin` PS2 extraits à plat :
 Fichiers **chiffrés/compressés** (non extraisibles en SJIS brut) :
 MTPRO.BIN, MTWM.BIN, MTST.BIN, COMMON.BIN — restent bloqués (haute entropie).
 
-## Le problème des accents français
+## Le problème des accents / latine dans la police
 
-Le kit closedsockets/Gyasuke sort en **ASCII pur** (l'anglais mappe 1:1 sur
-les glyphes latins de la police JP). Le français a des **accents** (é è à ç
-û ô î œ…) absents de la police JP.
+La map de glyphes de l'exécutable (0x327186, ~3160 codes) couvre hiragana,
+katakana et kanji — **pas la latine fullwidth** (０-９/Ａ-Ｚ/ａ-ｚ absents),
+contrairement à une première analyse. La ponctuation « ！？」。、 » est gérée
+hors de cette table.
 
-Stratégie en deux temps :
-1. **Maintenant** — le CSV garde du *vrai* français avec accents. Au build,
-   un mapping accent→lettre de base (é→e) permet de produire un patch
-   jouable sans toucher à la police.
-2. **Plus tard** — casser le format `FTALL.P04` (slot→offset) pour injecter
-   de vrais glyphes accentués dans les slots vides, comme Gyasuke l'a fait
-   pour les lettres anglaises manquantes. Le CSV ne change pas.
+Le patch EN de Gyasuke rend du latin en **surécrivant des slots kanji
+existants** avec des glyphes latins, puis en utilisant ces codes (plage
+0x8a-0x97) dans le texte. Chaque lettre = 1 code 2 octets = 1 slot.
+
+Stratégie FR (chemin robuste, sans casser le bitmap) :
+1. **Extraire le mapping code→lettre de Gyasuke** par analyse de fréquence de
+   son BVC.BIN EN (les codes les plus fréquents = e/t/a/o/i/n/s/h/r…).
+2. Mapper les lettres FR sur ces mêmes slots ; accents → lettre de base
+   pour l'instant.
+3. (Optionnel, plus tard) injecter de vrais glyphes accentués dans des
+   slots vides une fois le format `FTALL.P04` compris.
+
+Contrainte : texte FR concis, ≤ `max_bytes // 2` caractères par ligne
+(tous fullwidth, 2 octets chacun), pour tenir dans l'allocation JP.
 
 ## Prochaines étapes
 
