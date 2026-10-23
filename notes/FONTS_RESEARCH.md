@@ -1,0 +1,73 @@
+# Recherche — police FTALL.P04 & mapping code→lettre
+
+Objectif : obtenir le mapping code (2 octets) → glyphe/lettre du patch EN de Gyasuke,
+pour écrire du français avec les mêmes codes (accents en repli é→e), OU construire
+notre propre police avec accents.
+
+## Constats établis (vérifiés, reproductibles via work/*.py)
+
+### 1. FTALL.P04 n'est PAS un atlas bitmap plat
+- Taille : 806 400 octets (JP et EN identiques en taille).
+- Rendu de glyphes à tous les pas testés (208..256, fenêtre 40×24, MSB-first) → **bruit**
+  pour les slots des codes EN les plus fréquents. Aucun pas ne produit de forme lisible.
+  Script : `work/font_diag.py` (PNG `work/font_diag.png`).
+- Autocorrélation : pic faible à lag 160 ; bosse de runs de zéros à 16-17 octets
+  (alignement 16). Signal insuffisant pour conclure. Script : `work/font_analyze.py`.
+
+### 2. La police a 3 sous-tables : scissor / alpha / bright
+- Chaînes dans l'exécutable SLPS_252.28 :
+  - `0x32fd37` « ERROR: font scissor table is full. »
+  - `0x32fd67` « ERROR: font alpha table is full. »
+  - `0x32fd97` « ERROR: font bright table is full. »
+- ⇒ Le format est structuré (rectangles de recorte + transparence + luminosité + bitmap),
+  pas un simple tableau de glyphes. C'est pourquoi les rendus plats échouent.
+
+### 3. Table des codes caractères (à l'exécutable, offset 0x327186)
+- **3646 entrées fixes** de 2 octets (codes SJIS), du `0x327186` au `0x328E02`.
+- Commence par un placeholder `0x8140` ; `0x8140` = slot vide.
+- **487 slots vides, 3159 remplis.** Index de slot = position dans le tableau (0..3645).
+- Script : lecture dans `work/font_calib2.py`.
+
+### 4. Objet « police » à l'exécutable, offset 0x32fdc0
+- Structure : **8 pointeurs** (vers du code/data en 0x12xxxx) + chaîne `host:data/ftall.p04`
+  (à 0x32fde0). Ressemble à un objet C++ (vtable + nom de fichier).
+- Pointeurs : 0x1251e8, 0x1251f8, 0x125208, 0x125218, 0x125248, 0x125248, 0x125228, 0x125238.
+- Le parser bitmap est dans l'une de ces fonctions (à identifier).
+
+### 5. Le mapping du patch EN n'est PAS monoalphabétique
+- BVC.BIN EN : **3115 codes distincts** (plage kanji), 378 178 occurrences.
+- Gyasuke a utilisé des **digraphes** (2 lettres → 1 slot) ⇒ alphabet > 26 lettres.
+- Analyse fréquentielle seule insuffisante (distribution lisse, pas de « the » net en trigramme).
+- Top unigrammes : `0x88c7` (3,78 % ≈ 'e'), `0x8951` (2,27 %), `0x8ade` (2,11 %),
+  `0x89f0`, `0x94f5`, `0x8aec`, ... Script : `work/font_freq.py`, `work/font_crypto.py`.
+
+### 6. Références indirectes (blocage du désassemblage rapide)
+- Aucune instruction `lui $rX, 0x32fd` dans l'exécutable (0 occurrence).
+- Aucun pointeur big-endian vers 0x32fde0 / 0x32fd37 / 0x32fd67.
+- ⇒ Les adresses data sont résolues via le **tableau de relocation ELF** (indirection),
+  pas par chargement d'adresse absolue. Il faut traiter les relocations pour trouver
+  le code qui charge « host:data/ftall.p04 » et parse le bitmap.
+
+## État : BLOQUÉ sur le format bitmap exact
+Pour débloquer, il faut (effort RE dédié, multi-sessions) :
+1. Traiter les relocations ELF de SLPS_252.28 (segments .text/.rodata, base 0x100000).
+2. Trouver la fonction qui ouvre `host:data/ftall.p04` et parse scissor/alpha/bright + bitmap.
+3. En extraire : taille des tables, offset du bitmap, pas par glyphe, packing des bits.
+4. Rendre les glyphes EN → lire visuellement le mapping code→lettre (ou corréler avec le texte).
+
+Outils en place : `capstone 5.0.9` dans `work/.venv` (désassemblage MIPS32 OK, voir
+`work/mips_dis.py`). Pas d'objdump/radare2 local.
+
+## Pistes alternatives (peut-être plus rapides)
+- **Crib-decoding** : aligner BVC.BIN JP↔EN (mêmes offsets), utiliser le texte JP lisible +
+  les noms de personnages (tags de speaker) comme cribs pour déduire code→lettre par segments.
+  Nécessite d'identifier les zones de tags de speaker dans BVC.BIN.
+- **Récupérer la police PNG de Gyasuke** : il a converti la police en PNG puis reconvertie.
+  Si un dump PNG/intermédiaire est public (son repo ou romhacking), le mapping s'en lit directement.
+
+## Scripts (reproductibles, dans work/)
+- `font_analyze.py` — hexdump + facteurs + autocorrélation + runs de zéros.
+- `font_calib2.py` — lecture table 3646 codes + rendu multi-pas (PNG).
+- `font_diag.py` — rendu compact slot×pas (PNG `font_diag.png`).
+- `font_freq.py` / `font_crypto.py` — unigrammes/bigrammes/trigrammes du BVC EN.
+- `mips_dis.py` — désassemblage capstone des cibles de vtable.
