@@ -4,6 +4,36 @@ Objectif : obtenir le mapping code (2 octets) → glyphe/lettre du patch EN de G
 pour écrire du français avec les mêmes codes (accents en repli é→e), OU construire
 notre propre police avec accents.
 
+## DÉCOUVERTE CLÉ — c'est une police en DIGRAMMES/TOKENS, pas A-Z (session 23/10)
+**Cela change toute l'approche.** Vérifié sur les cris de combat (stables, texte JP lisible) :
+- **Ratio ~1.24 code / caractère-JP**, et un mot entier tient parfois dans 1 code.
+  Ex. 「行けっ！」= « GO! » → `0x974d` + `0x88c7(!)` ⇒ **1 code = le mot "GO"**.
+- **Ce n'est PAS un code par lettre.** Chaque code (2 octets) = un FRAGMENT de texte
+  (souvent un digramme = 2 lettres, parfois plus). Gyasuke a découpé l'anglais en
+  fragments, créé un GLYPHE LIGATURE par fragment, et stocké les codes dans BVC.BIN.
+- **Ancres digrammes établies** (haute confiance, `work/digraph_anchors.json`) :
+  - `0x88c7` = « ! » ; `0x974d` = "GO" ; `0x96e2`+`0x93e5` = "FA"+"LL" (FALL) ;
+    `0x8d61`+`0x945b` = "SI"+"NK" (SINK).
+- **Conséquence** : le « mapping » à cracker n'est pas 26 lettres mais un **vocabulaire de
+  ~3000 fragments de texte**. Pour écrire du FR, il faut (a) la table code→fragment et
+  (b) découper mon français dans les MÊMES fragments. C'est un problème d'**alignement
+  texte-anglais ↔ séquences de codes**, crackable si on a le plaintext anglais fiable.
+- Dataset : **3018 cris de combat uniques** (JP + codes + freq) → `work/battle_cries.json`.
+
+### Corrections apportées cette session
+- Les chaînes police sont à **offsets FICHIER** 0x32fdxx ⇒ **VAs réelles 0x42e4xx**
+  (section texte : VA = file_off + 0xFE700). Le nom de fichier réel est `st:data/ftall.p04`
+  (chemin IOP PS2, st: = lecteur CD/DVD), à file 0x32fdea / VA 0x42e4ea.
+- **Ces strings semblent être du code mort/debug** : 0 instruction `lui/ori` les charge,
+  0 pointeur LE (word) ne pointe vers le bloc 0x42e4xx, pas de `set_gp` trouvé, pas
+  d'accès gp-relatif détectable. ⇒ chasser le parser via ces chaînes = impasse.
+- **ELF strippé confirmé** : 202 sections, 197 progbits, **aucune section REL/RELA**.
+  La clé « relocations ELF » ne s'applique pas (pas de relocations).
+- Le font n'est PAS un bitmap plat ni vectoriel simple : rendus 1bpp/8bpp à TOUTES les
+  tailles de slot testées (256/240/224/192/128) = bruit. Les glyphes sont des ligatures
+  pré-rendues dans un format structuré (tables scissor/alpha/bright), il faut le parser
+  pour les rasteriser — MAIS on peut contourner en crackant le vocabulaire par alignement.
+
 ## Constats établis (vérifiés, reproductibles via work/*.py)
 
 ### 1. FTALL.P04 n'est PAS un atlas bitmap plat

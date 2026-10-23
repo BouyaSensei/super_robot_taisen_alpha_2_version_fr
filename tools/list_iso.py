@@ -27,16 +27,18 @@ def main():
     for path, dirs, files in iso.walk(**walk_kw):
         d = path.replace('\\', '/')
         for f in files:
-            name = f if isinstance(f, str) else str(f)
-            full = (d + '/' + name).lstrip('/')
+            raw = f if isinstance(f, str) else str(f)
+            name = raw.split(';')[0]  # retire le suffixe de version ISO9660 (;1)
+            full = '/' + d.strip('/') + '/' + raw  # raw garde le ;1 requis par pycdlib
             total_files += 1
             print('F', full)
             if extract_root and fnmatch.fnmatch(name.lower(), pattern.lower()):
-                dest_dir = os.path.join(extract_root, os.path.dirname(full))
+                rel_dir = os.path.dirname(full).lstrip('/')
+                dest_dir = os.path.join(extract_root, rel_dir) if rel_dir else extract_root
                 os.makedirs(dest_dir, exist_ok=True)
                 dest = os.path.join(dest_dir, name)
                 try:
-                    iso.get_file_from_iso(dest, full)
+                    iso.get_file_from_iso(dest, iso_path=full)
                     print('  -> EXTRACTED', dest)
                 except Exception as e:
                     print('  !! extract failed:', e)
